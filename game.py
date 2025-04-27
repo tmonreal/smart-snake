@@ -16,15 +16,11 @@ class Direction(Enum):
 Point = namedtuple('Point', 'x, y')
 
 # rgb colors
-WHITE = (255, 255, 255)
-RED = (200,0,0)
-BLUE1 = (0, 0, 255)
-BLUE2 = (0, 100, 255)
-BLACK = (0,0,0)
 GREEN1 = (34, 139, 34)   # Darker 
 GREEN2 = (50, 205, 50)   # Lighter 
 BG1 = (30, 30, 60)       # Darker blue tile
 BG2 = (50, 50, 80)       # Lighter blue tile
+LB = (100, 130, 160)  # Light blue border
 
 BLOCK_SIZE = 20
 SPEED = 40
@@ -140,8 +136,8 @@ class SnakeGameAI:
         snake_color2 = (144, 238, 144) if self.shine_frames > 0 else GREEN2
 
         for pt in self.snake:
-            pygame.draw.rect(self.display, snake_color1, pygame.Rect(pt.x, pt.y + BAR_HEIGHT, BLOCK_SIZE, BLOCK_SIZE))
-            pygame.draw.rect(self.display, snake_color2, pygame.Rect(pt.x+4, pt.y+4 + BAR_HEIGHT, 12, 12))
+            pygame.draw.rect(self.display, snake_color1, pygame.Rect(pt.x, pt.y + BAR_HEIGHT, BLOCK_SIZE, BLOCK_SIZE), border_radius=5)
+            pygame.draw.rect(self.display, snake_color2, pygame.Rect(pt.x+4, pt.y+4 + BAR_HEIGHT, 12, 12), border_radius=5)
 
         # Draw food (apple)
         self.display.blit(self.apple_image, (self.food.x, self.food.y + BAR_HEIGHT))
@@ -151,12 +147,29 @@ class SnakeGameAI:
         if self.new_record_flash > 0:
             big_font = pygame.font.Font('resources/PressStart2P-Regular.ttf', 40)
             big_font.set_bold(True)
-            flash_text = big_font.render('¡NEW RECORD!', True, (255, 215, 0))
-            self.display.blit(flash_text, [self.w//2 - 245, self.h//2 - 20])
+            alpha = min(255, (30 - self.new_record_flash) * 8)  
+            
+            # Render text to a new surface
+            flash_surface = big_font.render('¡NEW RECORD!', True, (255, 215, 0))
+            flash_surface.set_alpha(alpha)
+            
+            # Create a temporary surface with per-pixel alpha
+            temp_surface = pygame.Surface((self.w, self.h + BAR_HEIGHT), pygame.SRCALPHA)
+            text_rect = flash_surface.get_rect(center=(self.w//2, self.h//2))
+            temp_surface.blit(flash_surface, text_rect)
+            
+            # Blit temporary surface over display
+            self.display.blit(temp_surface, (0,0))
+
             self.new_record_flash -= 1
 
         if self.shine_frames > 0:
             self.shine_frames -= 1
+
+        border_thickness = 2
+        pygame.draw.rect(self.display, LB,
+                        pygame.Rect(0, BAR_HEIGHT, self.w, self.h),
+                        border_thickness, border_radius=5)
 
         pygame.display.flip()
 
@@ -176,6 +189,11 @@ class SnakeGameAI:
         self.display.blit(score_text, (10, 10))
         self.display.blit(record_text, (self.w - record_text.get_width() - 10, 10))
 
+    def set_session_record(self, session_record):
+        self.record = session_record 
+
+    def flash_new_record(self):
+        self.new_record_flash = 30  
 
     def _move(self, action):
         # [straight, right, left]

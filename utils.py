@@ -70,3 +70,15 @@ def plot_convergence(successes, moving_avg_window=20, save_path=None):
             os.makedirs(os.path.dirname(save_path), exist_ok=True)
             plt.savefig(save_path, dpi=300, bbox_inches='tight')
         plt.close()
+
+def save_best_score(score, file_name='model/best_score.txt'):
+    with open(file_name, 'w') as f:
+        f.write(str(score))
+
+def load_best_score(file_name='model/best_score.txt'):
+    try:
+        with open(file_name, 'r') as f:
+            return int(f.read())
+    except FileNotFoundError:
+        return 0  # If no best_score.txt yet, assume record = 0
+
