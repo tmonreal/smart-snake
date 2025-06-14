@@ -40,6 +40,7 @@ def plot_training_progress(scores, mean_scores, successes, save_path=None):
     plt.tight_layout()
 
     if save_path:
+        os.makedirs(os.path.dirname(save_path), exist_ok=True)
         plt.savefig(save_path, dpi=300, bbox_inches='tight')
     plt.close()
 

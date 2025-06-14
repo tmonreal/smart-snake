@@ -43,13 +43,9 @@ class DQLNetwork(nn.Module):
         Args:
             file_name (str): filename to save the model to
         """
-        model_folder_path = cfg.MODEL_FOLDER
-        if not os.path.exists(model_folder_path):
-            os.makedirs(model_folder_path)
-
-        file_path = os.path.join(model_folder_path, file_name)
+        os.makedirs(os.path.dirname(file_name), exist_ok=True)
         torch.save(self.state_dict(), file_name)
-        print("💾 Modelo guardado correctamente en", file_path)
+        print("💾 Modelo guardado correctamente en", file_name)
 
     def load(self, file_name=cfg.MODEL_FILE):
         """
@@ -58,11 +54,9 @@ class DQLNetwork(nn.Module):
         Args:
             file_name (str): filename to load the model from
         """
-        model_folder_path = cfg.MODEL_FOLDER
-        file_path = os.path.join(model_folder_path, file_name)
-        if os.path.exists(file_path):
-            self.load_state_dict(torch.load(file_path))
-            print("⏳ Modelo cargado correctamente desde", file_path)
+        if os.path.exists(file_name):
+            self.load_state_dict(torch.load(file_name))
+            print("⏳ Modelo cargado correctamente desde", file_name)
         else:
             print("⚠️ No se encontró un modelo guardado.")
 
@@ -120,9 +114,49 @@ class DQLTrainer:
             if not done[idx]:
                 Q_new = reward[idx] + self.gamma * torch.max(self.model(next_state[idx]))
 
-            target[idx][torch.argmax(action[idx]).item()] = Q_new
+            target[idx][action[idx].item()] = Q_new
 
         # Backpropagation
+        self.optimizer.zero_grad()
+        loss = self.criterion(target, pred)
+        loss.backward()
+        self.optimizer.step()
+
+class DDQNTrainer:
+    def __init__(self, model, target_model, lr, gamma):
+        self.model = model  # Online network
+        self.target_model = target_model  # Target network
+        self.lr = lr
+        self.gamma = gamma
+        self.optimizer = optim.Adam(model.parameters(), lr=self.lr)
+        self.criterion = nn.MSELoss()
+
+    def train_step(self, state, action, reward, next_state, done):
+        state = torch.tensor(np.array(state), dtype=torch.float)
+        next_state = torch.tensor(np.array(next_state), dtype=torch.float)
+        action = torch.tensor(np.array(action), dtype=torch.long)
+        reward = torch.tensor(np.array(reward), dtype=torch.float)
+
+        if len(state.shape) == 1:
+            state = torch.unsqueeze(state, 0)
+            next_state = torch.unsqueeze(next_state, 0)
+            action = torch.unsqueeze(action, 0)
+            reward = torch.unsqueeze(reward, 0)
+            done = (done, )
+
+        pred = self.model(state)
+        target = pred.clone()
+
+        with torch.no_grad():
+            next_action = self.model(next_state).argmax(dim=1, keepdim=True)
+            next_q = self.target_model(next_state).gather(1, next_action)
+
+        for idx in range(len(done)):
+            Q_new = reward[idx]
+            if not done[idx]:
+                Q_new = reward[idx] + self.gamma * next_q[idx]
+            target[idx][action[idx].item()] = Q_new
+
         self.optimizer.zero_grad()
         loss = self.criterion(target, pred)
         loss.backward()

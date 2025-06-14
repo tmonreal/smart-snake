@@ -1,11 +1,13 @@
 import sys
 import os
+import torch
 import pygame
 import numpy as np
 import config as cfg
 from game import SmartSnake
 from agent import SnakeAgent
 from utils import plot_training_progress, plot_success_trend, load_best_score, save_best_score
+from config import MAX_EPISODES
 
 def menu():
     """
@@ -63,7 +65,7 @@ def menu():
         pygame.display.flip()
         clock.tick(60)
 
-def train(snake_agent, best_score, choice):
+def train(snake_agent, best_score, choice, mode):
     """
     Main training loop for the Snake agent.
 
@@ -74,10 +76,10 @@ def train(snake_agent, best_score, choice):
     """
     # Initialize training metrics
     if choice == 2:  # Continue training best model
-        if os.path.exists('model/scores.npy'):
-            plot_scores = np.load('model/scores.npy').tolist()
-            plot_mean_scores = np.load('model/mean_scores.npy').tolist()
-            successes = np.load('model/successes.npy').tolist()
+        if os.path.exists(f'model/results_{mode}/scores.npy'):
+            plot_scores = np.load(f'model/results_{mode}/scores.npy').tolist()
+            plot_mean_scores = np.load(f'model/results_{mode}/mean_scores.npy').tolist()
+            successes = np.load(f'model/results_{mode}/successes.npy').tolist()
             print(f"✅ Datos anteriores cargados: {len(plot_scores)} episodios previos.")
         else:
             plot_scores = []
@@ -100,6 +102,15 @@ def train(snake_agent, best_score, choice):
         state_old = snake_agent.get_state(game)
         # 2. Get action from agent
         chosen_action = snake_agent.get_action(state_old)
+
+        # Estimar valor máximo Q del estado actual
+        with torch.no_grad():
+            q_values = snake_agent.model(torch.tensor(state_old, dtype=torch.float))
+            max_q = torch.max(q_values).item()
+            if 'q_values_list' not in locals():
+                q_values_list = []
+            q_values_list.append(max_q)
+
         # 3. Perform action, get new state and reward
         reward, done, score = game.play_step(chosen_action)
         state_new = snake_agent.get_state(game)
@@ -109,6 +120,9 @@ def train(snake_agent, best_score, choice):
         snake_agent.store_experience(state_old, chosen_action, reward, state_new, done)
 
         if done:
+            if snake_agent.episodes_played >= MAX_EPISODES:
+                print(f"🔚 Entrenamiento de prueba terminado ({MAX_EPISODES} episodios).")
+                break
             # 6. Episode finished
             game.reset()
             snake_agent.episodes_played += 1
@@ -117,14 +131,14 @@ def train(snake_agent, best_score, choice):
             # Check if session record beaten
             if score > record:
                 record = score
-                snake_agent.model.save(cfg.MODEL_FILE) 
+                snake_agent.model.save(cfg.model_path(cfg.MODEL_FILE, mode)) 
                 game.set_session_record(record)
 
                 # Check if global best beaten
                 if record > best_score:
                     best_score = record  
-                    snake_agent.model.save(cfg.BEST_MODEL_FILE) 
-                    save_best_score(best_score)  
+                    snake_agent.model.save(cfg.model_path(cfg.BEST_MODEL_FILE, mode)) 
+                    save_best_score(best_score, file_name=cfg.model_path(cfg.BEST_SCORE_FILE, mode))  
                     game.flash_new_record()
 
             print(f'Episode {snake_agent.episodes_played} | Score: {score} | Record: {record}')
@@ -135,33 +149,43 @@ def train(snake_agent, best_score, choice):
             mean_score = total_score / snake_agent.episodes_played
             plot_mean_scores.append(mean_score)
             # Save plots data
-            np.save('model/scores.npy', np.array(plot_scores))
-            np.save('model/mean_scores.npy', np.array(plot_mean_scores))
-            np.save('model/successes.npy', np.array(successes))
+            np.save(f'model/results_{mode}/scores.npy', np.array(plot_scores))
+            np.save(f'model/results_{mode}/mean_scores.npy', np.array(plot_mean_scores))
+            np.save(f'model/results_{mode}/successes.npy', np.array(successes))
+            np.save(f'model/results_{mode}/q_values.npy', np.array(q_values_list))
 
             success = 1 if score > 0 else 0
             successes.append(success)
 
             # Plot progress every N episodes (defined in config.py)
             if snake_agent.episodes_played % cfg.PLOT_SAVE_EVERY == 0:
-                plot_training_progress(plot_scores, plot_mean_scores, successes, save_path=f'plots/test4/plot_{snake_agent.episodes_played}_record_{record}.png')
-                plot_success_trend(successes, moving_avg_window=20, save_path=f'plots/test4/convergence_{snake_agent.episodes_played}_record_{record}.png')
+                os.makedirs(f'plots/{mode}', exist_ok=True)
+                plot_training_progress(plot_scores, plot_mean_scores, successes, save_path=f'plots/{mode}/plot_{snake_agent.episodes_played}_record_{record}.png')
+                plot_success_trend(successes, moving_avg_window=20, save_path=f'plots/{mode}/convergence_{snake_agent.episodes_played}_record_{record}.png')
 
-def main():
+def main(mode='ddqn'):
     """Main entry point of the program."""
+
     choice = menu()
 
-    snake_agent = SnakeAgent()
+    if mode == 'dqn':
+        from model import DQLTrainer
+        snake_agent = SnakeAgent(trainer_class=DQLTrainer)
+    else:
+        from model import DDQNTrainer
+        snake_agent = SnakeAgent(trainer_class=DDQNTrainer)
 
     if choice == 2: # Load best model
-        snake_agent.model.load(cfg.BEST_MODEL_FILE) 
-        best_score = load_best_score() 
+        snake_agent.model.load(cfg.model_path(cfg.BEST_MODEL_FILE, mode))
+        best_score = load_best_score(file_name=cfg.model_path(cfg.BEST_SCORE_FILE, mode))
         print(f"✅ Mejor modelo cargado con récord de {best_score} puntos.")
     else: # Start from scratch
         print("Entrenamiento nuevo iniciado.")
         best_score = 0
 
-    train(snake_agent, best_score, choice)
+    train(snake_agent, best_score, choice, mode)
 
 if __name__ == '__main__':
+    mode = sys.argv[1] if len(sys.argv) > 1 else 'ddqn'  
+    main(mode)
     main()

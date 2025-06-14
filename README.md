@@ -86,6 +86,28 @@ Training progress will be plotted every **20 episodes**. This can be modified by
 
 ---
 
+## DDQN Version
+
+A Double DQN (DDQN) version of this agent is available in the branch [`ddqn-version`](https://github.com/tmonreal/smart-snake/tree/ddqn-version).
+
+In this version:
+- A second target network is maintained (`target_model`).
+- The Q-learning target uses the DDQN strategy:
+  - Action is selected using the main model.
+  - Q-value is estimated using the target model.
+- The target network is updated every N episodes.
+
+This improves the stability of training by reducing overestimation in the Q-values.
+
+To run this version:
+
+```bash
+git checkout ddqn-version
+python main.py
+```
+
+---
+
 ## 🎥 Demo
 
 The following demos illustrate the evolution of the agent's performance:
