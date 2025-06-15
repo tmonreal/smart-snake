@@ -96,8 +96,10 @@ def train(snake_agent, best_score, choice, mode):
     record = best_score  # Local record for this session
     game = SmartSnake()
     game.set_session_record(record)
+    q_values_list = []
     
     while True:
+        episode_q_values = [] 
         # 1. Get current state
         state_old = snake_agent.get_state(game)
         # 2. Get action from agent
@@ -107,9 +109,7 @@ def train(snake_agent, best_score, choice, mode):
         with torch.no_grad():
             q_values = snake_agent.model(torch.tensor(state_old, dtype=torch.float))
             max_q = torch.max(q_values).item()
-            if 'q_values_list' not in locals():
-                q_values_list = []
-            q_values_list.append(max_q)
+            episode_q_values.append(max_q)
 
         # 3. Perform action, get new state and reward
         reward, done, score = game.play_step(chosen_action)
@@ -149,6 +149,7 @@ def train(snake_agent, best_score, choice, mode):
             total_score += score
             mean_score = total_score / snake_agent.episodes_played
             plot_mean_scores.append(mean_score)
+            q_values_list.append(np.mean(episode_q_values))
             # Save plots data
             np.save(f'model/results_{mode}/scores.npy', np.array(plot_scores))
             np.save(f'model/results_{mode}/mean_scores.npy', np.array(plot_mean_scores))

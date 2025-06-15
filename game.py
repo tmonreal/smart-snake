@@ -244,7 +244,7 @@ class SmartSnake:
         episode_text = font.render(f"Episode: {self.episode_number}", True, (255, 255, 0))  # Yellow episode
 
         self.display.blit(score_text, (10, 10))
-        self.display.blit(episode_text, (self.w // 2 - episode_text.get_width() // 2, 10))
+        self.display.blit(episode_text, (self.w // 2 - episode_text.get_width() // 2 - 5, 10))
         self.display.blit(record_text, (self.w - record_text.get_width() - 10, 10))
 
     def set_session_record(self, session_record):
