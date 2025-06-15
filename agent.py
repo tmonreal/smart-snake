@@ -26,7 +26,7 @@ class SnakeAgent:
         self.epsilon = 0 # Exploration rate
         self.gamma = cfg.DISCOUNT_FACTOR # Discount factor for future rewards
         self.replay_buffer = deque(maxlen=REPLAY_BUFFER_SIZE)  # Experience replay memory
-        self.model = DQLNetwork(11, 256, 3) # Neural network: 11 inputs, 256 hidden neurons, 3 outputs
+        self.model = DQLNetwork(15, 256, 3) # Neural network: 15 inputs, 256 hidden neurons, 3 outputs
         self.update_target_network_every = 5           # Episode interval to update target network
         if trainer_class.__name__ == "DDQNTrainer":
             self.is_ddqn = True
@@ -93,9 +93,15 @@ class SnakeAgent:
             game.apple.x < game.head.x,  # Apple is left
             game.apple.x > game.head.x,  # Apple is right
             game.apple.y < game.head.y,  # Apple is up
-            game.apple.y > game.head.y  # Apple is down
-            ]
+            game.apple.y > game.head.y,  # Apple is down
 
+            # Golden apple
+            game.golden_apple.x < game.head.x if game.golden_apple else False,
+            game.golden_apple.x > game.head.x if game.golden_apple else False,
+            game.golden_apple.y < game.head.y if game.golden_apple else False,
+            game.golden_apple.y > game.head.y if game.golden_apple else False,
+            ]
+            
         return np.array(state, dtype=int)
 
     def store_experience(self, state, action, reward, next_state, done):

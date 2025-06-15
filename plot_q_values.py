@@ -10,9 +10,8 @@ q_dqn = np.load("model/results_dqn/q_values.npy", allow_pickle=True)
 q_ddqn = np.load("model/results_ddqn/q_values.npy", allow_pickle=True)
 
 # Suavizado
-# TODO: change window size to 50 when more episodes are played
-q_dqn_smooth = moving_avg(q_dqn, window=5)
-q_ddqn_smooth = moving_avg(q_ddqn, window=5)
+q_dqn_smooth = moving_avg(q_dqn, window=100)
+q_ddqn_smooth = moving_avg(q_ddqn, window=100)
 
 # Graficar
 plt.figure(figsize=(10, 6))

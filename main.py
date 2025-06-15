@@ -125,6 +125,7 @@ def train(snake_agent, best_score, choice, mode):
                 break
             # 6. Episode finished
             game.reset()
+            game.set_episode(snake_agent.episodes_played + 1)
             snake_agent.episodes_played += 1
             snake_agent.train_replay_buffer()
 
