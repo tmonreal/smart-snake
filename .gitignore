@@ -1,2 +1,7 @@
-plots
+plots/ddqn/*
+plots/dqn/*
+!plots/ddqn/plot_500_record_221.png
+!plots/ddqn/convergence_500_record_221.png
+!plots/dqn/convergence_500_record_187.png
+!plots/dqn/plot_500_record_187.png
 __pycache__
