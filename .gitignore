@@ -1,3 +1,4 @@
+# Environment avanzado (manzana dorada)
 plots/ddqn/*
 plots/dqn/*
 plots/dueling/*
@@ -7,4 +8,15 @@ plots/dueling/*
 !plots/dqn/plot_500_record_187.png
 !plots/dueling/convergence_500_record_198.png
 !plots/dueling/plot_500_record_198.png
+
+# Environment simple 
+plots/ddqn_simple/*
+plots/dqn_simple/*
+plots/dueling_simple/*
+!plots/ddqn/plot_500_record_73.png
+!plots/ddqn/convergence_500_record_73.png
+!plots/dqn/convergence_500_record_76.png
+!plots/dqn/plot_500_record_76.png
+!plots/dueling/convergence_500_record_59.png
+!plots/dueling/plot_500_record_59.png
 __pycache__

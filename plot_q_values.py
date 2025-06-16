@@ -6,9 +6,9 @@ def moving_avg(values, window):
     return np.convolve(values, np.ones(window) / window, mode='valid')
 
 # Cargar Q-values estimados
-q_dqn = np.load("model/results_dqn/q_values.npy", allow_pickle=True)
-q_ddqn = np.load("model/results_ddqn/q_values.npy", allow_pickle=True)
-q_dueling = np.load("model/results_dueling/q_values.npy", allow_pickle=True)
+q_dqn = np.load("model/results_dqn_simple/q_values.npy", allow_pickle=True)
+q_ddqn = np.load("model/results_ddqn_simple/q_values.npy", allow_pickle=True)
+q_dueling = np.load("model/results_dueling_simple/q_values.npy", allow_pickle=True)
 
 # Suavizado
 q_dqn_smooth = moving_avg(q_dqn, window=100)
@@ -27,4 +27,4 @@ plt.ylabel("Valor Q Estimado Promedio")
 plt.legend()
 plt.grid(True)
 plt.tight_layout()
-plt.savefig("plots/comparacion_q_values.png", dpi=300)
+plt.savefig("plots/comparacion_q_values_env_simple.png", dpi=300)

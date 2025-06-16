@@ -8,8 +8,8 @@ Compare DQN vs DDQN vs Dueling DQN performance by loading scores and plotting re
 
 def load_scores(mode):
     try:
-        mean = np.load(f"model/results_{mode}/mean_scores.npy", allow_pickle=True)
-        scores = np.load(f"model/results_{mode}/scores.npy", allow_pickle=True)
+        mean = np.load(f"model/results_{mode}_simple/mean_scores.npy", allow_pickle=True)
+        scores = np.load(f"model/results_{mode}_simple/scores.npy", allow_pickle=True)
         return mean, scores
     except FileNotFoundError:
         print(f"❌ No se encontraron datos para {mode}")
@@ -27,7 +27,7 @@ def plot_comparison(mean_dqn, mean_ddqn, mean_dueling, scores_dqn, scores_ddqn, 
     plt.legend()
     plt.grid(True)
     plt.tight_layout()
-    plt.savefig("plots/comparacion_mean_scores.png", dpi=300)
+    plt.savefig("plots/comparacion_mean_scores_env_simple.png", dpi=300)
 
     # Raw score plot
     plt.figure(figsize=(10, 6))
@@ -40,7 +40,7 @@ def plot_comparison(mean_dqn, mean_ddqn, mean_dueling, scores_dqn, scores_ddqn, 
     plt.legend()
     plt.grid(True)
     plt.tight_layout()
-    plt.savefig("plots/comparacion_scores_raw.png", dpi=300)
+    plt.savefig("plots/comparacion_scores_raw_env_simple.png", dpi=300)
 
 if __name__ == "__main__":
     mean_dqn, scores_dqn = load_scores("dqn")
