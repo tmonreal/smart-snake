@@ -30,8 +30,9 @@ Point = namedtuple('Point', 'x, y')
 
 class SmartSnake:
     """Class representing the Snake game environment."""
-    def __init__(self, w=640, h=480):
+    def __init__(self, w=640, h=480, enable_golden=True):
         """Initialize the game environment."""
+        self.enable_golden = enable_golden
         self.w = w
         self.h = h
         self.episode_number = 0
@@ -72,9 +73,10 @@ class SmartSnake:
         self.score = 0
         self.apple = None
         self.place_apple()
-        self.place_golden_apple()
         self.frame_iteration = 0
-        self.golden_timer = 0
+        if self.enable_golden:
+            self.place_golden_apple()
+            self.golden_timer = 0        
 
     def place_apple(self):
         """Place a new regular apple and maybe a golden one."""
@@ -133,8 +135,10 @@ class SmartSnake:
             self.score += 1
             reward = 10
             self.place_apple()
-            self.place_golden_apple() 
+            if self.enable_golden:
+                self.place_golden_apple() 
             self.shine_frames = 5
+
         elif self.golden_apple and self.head == self.golden_apple:
             self.score += 3  # higher score
             reward = 20      # stronger incentive
@@ -144,7 +148,7 @@ class SmartSnake:
             self.snake.pop()
 
         # Handle golden apple expiration
-        if self.golden_apple:
+        if self.enable_golden and self.golden_apple:
             self.golden_timer += 1
             if self.golden_timer > self.max_golden_time:  
                 self.golden_apple = None
