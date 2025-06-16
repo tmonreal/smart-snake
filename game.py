@@ -30,12 +30,23 @@ Point = namedtuple('Point', 'x, y')
 
 class SmartSnake:
     """Class representing the Snake game environment."""
-    def __init__(self, w=640, h=480):
+    def __init__(self, w=640, h=480, enable_golden=True):
         """Initialize the game environment."""
+        self.enable_golden = enable_golden
         self.w = w
         self.h = h
+        self.episode_number = 0
+        # Red "basic" apple image
         self.apple_image = pygame.image.load('resources/apple.webp') 
         self.apple_image = pygame.transform.scale(self.apple_image, (BLOCK_SIZE, BLOCK_SIZE))
+        
+        # Golden apple image
+        self.golden_image = pygame.image.load('resources/green_apple.webp')
+        self.golden_image = pygame.transform.scale(self.golden_image, (BLOCK_SIZE, BLOCK_SIZE))
+
+        self.golden_apple = None
+        self.golden_timer = 0
+        self.max_golden_time = 180  # frames until it disappears
 
         self.record = 0  # Current session record
         self.new_record_flash = 0 # Frames left for "NEW RECORD" flashing
@@ -45,6 +56,10 @@ class SmartSnake:
         pygame.display.set_caption('Smart Snake by Trinidad Monreal')
         self.clock = pygame.time.Clock()
         self.reset()
+    
+    def set_episode(self, episode):
+        """Set the current episode number (displayed in the title bar)."""
+        self.episode_number = episode
 
     def reset(self):
         """Reset the game state to start a new game."""
@@ -59,16 +74,28 @@ class SmartSnake:
         self.apple = None
         self.place_apple()
         self.frame_iteration = 0
-
+        if self.enable_golden:
+            self.place_golden_apple()
+            self.golden_timer = 0        
 
     def place_apple(self):
-        """Place a new apple randomly on the board, avoiding the snake's body."""
-        x = random.randint(0, (self.w-BLOCK_SIZE )//BLOCK_SIZE )*BLOCK_SIZE
-        y = random.randint(0, (self.h-BLOCK_SIZE )//BLOCK_SIZE )*BLOCK_SIZE
-        self.apple = Point(x, y)
-        if self.apple in self.snake:
-            self.place_apple()
+        """Place a new regular apple and maybe a golden one."""
+        while True:
+            x = random.randint(0, (self.w - BLOCK_SIZE) // BLOCK_SIZE) * BLOCK_SIZE
+            y = random.randint(0, (self.h - BLOCK_SIZE) // BLOCK_SIZE) * BLOCK_SIZE
+            self.apple = Point(x, y)
+            if self.apple not in self.snake:
+                break
 
+    def place_golden_apple(self):
+        while True:
+            gx = random.randint(0, (self.w - BLOCK_SIZE) // BLOCK_SIZE) * BLOCK_SIZE
+            gy = random.randint(0, (self.h - BLOCK_SIZE) // BLOCK_SIZE) * BLOCK_SIZE
+            golden = Point(gx, gy)
+            if golden != self.apple and golden not in self.snake:
+                self.golden_apple = golden
+                self.golden_timer = 0
+                break
 
     def play_step(self, action):
         """
@@ -93,9 +120,14 @@ class SmartSnake:
         # Check for collisions
         reward = 0
         game_over = False
-        if self.is_collision() or self.frame_iteration > 100*len(self.snake):
+        if self.is_collision():
             game_over = True
             reward = -10
+            return reward, game_over, self.score
+        
+        if self.frame_iteration > 100*len(self.snake):
+            game_over = True
+            reward = -3
             return reward, game_over, self.score
 
         # Check if apple was eaten
@@ -103,9 +135,23 @@ class SmartSnake:
             self.score += 1
             reward = 10
             self.place_apple()
-            self.shine_frames = 5 
+            if self.enable_golden:
+                self.place_golden_apple() 
+            self.shine_frames = 5
+
+        elif self.golden_apple and self.head == self.golden_apple:
+            self.score += 3  # higher score
+            reward = 20      # stronger incentive
+            self.golden_apple = None
+            self.shine_frames = 5
         else:
             self.snake.pop()
+
+        # Handle golden apple expiration
+        if self.enable_golden and self.golden_apple:
+            self.golden_timer += 1
+            if self.golden_timer > self.max_golden_time:  
+                self.golden_apple = None
         
         # Update visuals
         self.draw_screen()
@@ -162,6 +208,8 @@ class SmartSnake:
 
         # Draw apple
         self.display.blit(self.apple_image, (self.apple.x, self.apple.y + BAR_HEIGHT))
+        if self.golden_apple and (self.golden_timer // 10) % 2 == 0:
+            self.display.blit(self.golden_image, (self.golden_apple.x, self.golden_apple.y + BAR_HEIGHT))
 
         # Show flashing "NEW RECORD!!" if necessary
         if self.new_record_flash > 0:
@@ -199,11 +247,13 @@ class SmartSnake:
         pygame.draw.rect(self.display, BG1, pygame.Rect(0, 0, self.w, BAR_HEIGHT))
         pygame.draw.line(self.display, (255, 255, 255), (0, BAR_HEIGHT), (self.w, BAR_HEIGHT), 2)
 
-        font = pygame.font.Font('resources/PressStart2P-Regular.ttf', 20)
+        font = pygame.font.Font('resources/PressStart2P-Regular.ttf', 18)
         score_text = font.render(f"Score: {self.score}", True, (255, 255, 255))
         record_text = font.render(f"Record: {self.record}", True, (255, 255, 255))
+        episode_text = font.render(f"Episode: {self.episode_number}", True, (255, 255, 0))  # Yellow episode
 
         self.display.blit(score_text, (10, 10))
+        self.display.blit(episode_text, (self.w // 2 - episode_text.get_width() // 2 - 5, 10))
         self.display.blit(record_text, (self.w - record_text.get_width() - 10, 10))
 
     def set_session_record(self, session_record):

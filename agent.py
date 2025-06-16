@@ -1,10 +1,11 @@
 import torch
+import copy
 import random
 import numpy as np
 import config as cfg
 from collections import deque
 from game import Direction, Point
-from model import DQLNetwork, DQLTrainer
+from model import DQLNetwork, DDQNTrainer, DQLTrainer, DuelingDQN
 
 # Load hyperparameters from config
 REPLAY_BUFFER_SIZE = cfg.REPLAY_BUFFER_SIZE
@@ -12,15 +13,45 @@ BATCH_SIZE = cfg.BATCH_SIZE
 LR = cfg.LEARNING_RATE
 
 class SnakeAgent:
-    """Agent that learns to play Snake using Deep Q-Learning."""
-    def __init__(self):
+    """
+    Snake-playing agent trained with Double Deep Q-Learning (DDQN).
+
+    - Maintains two networks: online (for action selection) and target (for evaluation).
+    - Uses experience replay and epsilon-greedy strategy.
+    - Periodically syncs target network to improve training stability.
+    """
+    def __init__(self, trainer_class):
         """Initialize the agent with model, trainer, and replay buffer."""
         self.episodes_played = 0
-        self.epsilon = 0 # Exploration rate
-        self.gamma = cfg.DISCOUNT_FACTOR # Discount factor for future rewards
+        self.epsilon = 0  # Exploration rate
+        self.gamma = cfg.DISCOUNT_FACTOR
         self.replay_buffer = deque(maxlen=REPLAY_BUFFER_SIZE)  # Experience replay memory
-        self.model = DQLNetwork(11, 256, 3) # Neural network: 11 inputs, 256 hidden neurons, 3 outputs
-        self.trainer = DQLTrainer(self.model, lr=LR, gamma=self.gamma)
+
+        input_size = 15  # State size
+        hidden_size = 256
+        output_size = 3  # Number of actions
+
+        if trainer_class.__name__ == "DuelingDQNTrainer":
+            self.is_ddqn = True
+            self.model = DuelingDQN(input_size, hidden_size, output_size)
+            self.target_model = DuelingDQN(input_size, hidden_size, output_size)
+            self.trainer = trainer_class(self.model, self.target_model, lr=LR, gamma=self.gamma)
+            print("Training with DuelingDQNTrainer.")
+
+        elif trainer_class.__name__ == "DDQNTrainer":
+            self.is_ddqn = True
+            self.model = DQLNetwork(input_size, hidden_size, output_size)
+            self.target_model = copy.deepcopy(self.model)
+            self.trainer = trainer_class(self.model, self.target_model, lr=LR, gamma=self.gamma)
+            print("Training with DDQNTrainer.")
+
+        else:  
+            self.is_ddqn = False
+            self.model = DQLNetwork(input_size, hidden_size, output_size)
+            self.trainer = trainer_class(self.model, lr=LR, gamma=self.gamma)
+            print(f"Training with {trainer_class.__name__}.")
+
+        self.update_target_network_every = 20
 
 
     def get_state(self, game):
@@ -77,9 +108,15 @@ class SnakeAgent:
             game.apple.x < game.head.x,  # Apple is left
             game.apple.x > game.head.x,  # Apple is right
             game.apple.y < game.head.y,  # Apple is up
-            game.apple.y > game.head.y  # Apple is down
-            ]
+            game.apple.y > game.head.y,  # Apple is down
 
+            # Golden apple
+            game.golden_apple.x < game.head.x if game.golden_apple else False,
+            game.golden_apple.x > game.head.x if game.golden_apple else False,
+            game.golden_apple.y < game.head.y if game.golden_apple else False,
+            game.golden_apple.y > game.head.y if game.golden_apple else False,
+            ]
+            
         return np.array(state, dtype=int)
 
     def store_experience(self, state, action, reward, next_state, done):
@@ -94,14 +131,24 @@ class SnakeAgent:
             mini_sample = self.replay_buffer # Not enough samples yet
 
         # Unpack mini-batch
-        states, actions, rewards, next_states, dones = zip(*mini_sample)
+        states, actions, rewards, next_states, dones = zip(*[
+            (s, np.argmax(a), r, ns, d) for (s, a, r, ns, d) in mini_sample
+        ])
+
 
         # Train the model using the batch
         self.trainer.train_step(states, actions, rewards, next_states, dones)
 
+        # Update target network periodically
+        if self.is_ddqn and self.episodes_played % self.update_target_network_every == 0:
+            self.update_target_network()
+
+
     def train_on_step(self, state, action, reward, next_state, done):
         """Train the model immediately on a single step."""
-        self.trainer.train_step(state, action, reward, next_state, done)
+        idx_action = np.argmax(action)  # transform from one-hot to index
+        self.trainer.train_step(state, idx_action, reward, next_state, done)
+        #self.trainer.train_step(state, action, reward, next_state, done)
 
     def update_epsilon(self):
         """Update the epsilon value based on episodes played."""
@@ -127,10 +174,15 @@ class SnakeAgent:
             chosen_action[action] = 1
         else:
             # Exploitation: choose best action predicted by model
-            state0 = torch.tensor(state, dtype=torch.float)
+            #state0 = torch.tensor(state, dtype=torch.float)
+            state0 = torch.tensor(state, dtype=torch.float).unsqueeze(0)
             with torch.no_grad():
                 prediction = self.model(state0)
             action = torch.argmax(prediction).item()
             chosen_action[action] = 1
 
         return chosen_action
+    
+    def update_target_network(self):
+        self.target_model.load_state_dict(self.model.state_dict())
+        print(f"[Episode {self.episodes_played}] Target network updated.")

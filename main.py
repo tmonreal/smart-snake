@@ -1,11 +1,14 @@
 import sys
 import os
+import torch
 import pygame
 import numpy as np
 import config as cfg
+import argparse
 from game import SmartSnake
 from agent import SnakeAgent
 from utils import plot_training_progress, plot_success_trend, load_best_score, save_best_score
+from config import MAX_EPISODES
 
 def menu():
     """
@@ -63,7 +66,7 @@ def menu():
         pygame.display.flip()
         clock.tick(60)
 
-def train(snake_agent, best_score, choice):
+def train(snake_agent, best_score, choice, mode, env_type="golden"):
     """
     Main training loop for the Snake agent.
 
@@ -73,11 +76,12 @@ def train(snake_agent, best_score, choice):
         choice (int): 1 for fresh training, 2 for continuing
     """
     # Initialize training metrics
+    mode_with_env = f"{mode}_{env_type}"
     if choice == 2:  # Continue training best model
-        if os.path.exists('model/scores.npy'):
-            plot_scores = np.load('model/scores.npy').tolist()
-            plot_mean_scores = np.load('model/mean_scores.npy').tolist()
-            successes = np.load('model/successes.npy').tolist()
+        if os.path.exists(f'model/results_{mode_with_env}/scores.npy'):
+            plot_scores = np.load(f'model/results_{mode_with_env}/scores.npy').tolist()
+            plot_mean_scores = np.load(f'model/results_{mode_with_env}/mean_scores.npy').tolist()
+            successes = np.load(f'model/results_{mode_with_env}/successes.npy').tolist()
             print(f"✅ Datos anteriores cargados: {len(plot_scores)} episodios previos.")
         else:
             plot_scores = []
@@ -92,14 +96,24 @@ def train(snake_agent, best_score, choice):
 
     total_score = 0
     record = best_score  # Local record for this session
-    game = SmartSnake()
+    game = SmartSnake(enable_golden=(env_type == "golden"))
     game.set_session_record(record)
+    q_values_list = []
     
     while True:
+        episode_q_values = [] 
         # 1. Get current state
         state_old = snake_agent.get_state(game)
         # 2. Get action from agent
         chosen_action = snake_agent.get_action(state_old)
+
+        # Estimar valor máximo Q del estado actual
+        with torch.no_grad():
+            #q_values = snake_agent.model(torch.tensor(state_old, dtype=torch.float))
+            q_values = snake_agent.model(torch.tensor(state_old, dtype=torch.float).unsqueeze(0))
+            max_q = torch.max(q_values).item()
+            episode_q_values.append(max_q)
+
         # 3. Perform action, get new state and reward
         reward, done, score = game.play_step(chosen_action)
         state_new = snake_agent.get_state(game)
@@ -109,22 +123,26 @@ def train(snake_agent, best_score, choice):
         snake_agent.store_experience(state_old, chosen_action, reward, state_new, done)
 
         if done:
+            if snake_agent.episodes_played >= MAX_EPISODES:
+                print(f"🔚 Entrenamiento de prueba terminado ({MAX_EPISODES} episodios).")
+                break
             # 6. Episode finished
             game.reset()
+            game.set_episode(snake_agent.episodes_played + 1)
             snake_agent.episodes_played += 1
             snake_agent.train_replay_buffer()
 
             # Check if session record beaten
             if score > record:
                 record = score
-                snake_agent.model.save(cfg.MODEL_FILE) 
+                snake_agent.model.save(cfg.model_path(cfg.MODEL_FILE, mode_with_env)) 
                 game.set_session_record(record)
 
                 # Check if global best beaten
                 if record > best_score:
                     best_score = record  
-                    snake_agent.model.save(cfg.BEST_MODEL_FILE) 
-                    save_best_score(best_score)  
+                    snake_agent.model.save(cfg.model_path(cfg.BEST_MODEL_FILE, mode_with_env)) 
+                    save_best_score(best_score, file_name=cfg.model_path(cfg.BEST_SCORE_FILE, mode_with_env))  
                     game.flash_new_record()
 
             print(f'Episode {snake_agent.episodes_played} | Score: {score} | Record: {record}')
@@ -134,34 +152,59 @@ def train(snake_agent, best_score, choice):
             total_score += score
             mean_score = total_score / snake_agent.episodes_played
             plot_mean_scores.append(mean_score)
+            q_values_list.append(np.mean(episode_q_values))
             # Save plots data
-            np.save('model/scores.npy', np.array(plot_scores))
-            np.save('model/mean_scores.npy', np.array(plot_mean_scores))
-            np.save('model/successes.npy', np.array(successes))
+            os.makedirs(f'model/results_{mode_with_env}', exist_ok=True)
+            np.save(f'model/results_{mode_with_env}/scores.npy', np.array(plot_scores))
+            np.save(f'model/results_{mode_with_env}/mean_scores.npy', np.array(plot_mean_scores))
+            np.save(f'model/results_{mode_with_env}/successes.npy', np.array(successes))
+            np.save(f'model/results_{mode_with_env}/q_values.npy', np.array(q_values_list))
 
             success = 1 if score > 0 else 0
             successes.append(success)
 
             # Plot progress every N episodes (defined in config.py)
             if snake_agent.episodes_played % cfg.PLOT_SAVE_EVERY == 0:
-                plot_training_progress(plot_scores, plot_mean_scores, successes, save_path=f'plots/test4/plot_{snake_agent.episodes_played}_record_{record}.png')
-                plot_success_trend(successes, moving_avg_window=20, save_path=f'plots/test4/convergence_{snake_agent.episodes_played}_record_{record}.png')
+                os.makedirs(f'plots/{mode_with_env}', exist_ok=True)
+                plot_training_progress(plot_scores, plot_mean_scores, successes, save_path=f'plots/{mode_with_env}/plot_{snake_agent.episodes_played}_record_{record}.png')
+                plot_success_trend(successes, moving_avg_window=20, save_path=f'plots/{mode_with_env}/convergence_{snake_agent.episodes_played}_record_{record}.png')
 
-def main():
+def main(mode='ddqn', env_type='golden'):
     """Main entry point of the program."""
     choice = menu()
 
-    snake_agent = SnakeAgent()
+    if mode == 'dqn':
+        from model import DQLTrainer
+        snake_agent = SnakeAgent(trainer_class=DQLTrainer)
+    elif mode == 'ddqn':
+        from model import DDQNTrainer
+        snake_agent = SnakeAgent(trainer_class=DDQNTrainer)
+    elif mode == 'dueling':
+        from model import DuelingDQNTrainer
+        snake_agent = SnakeAgent(trainer_class=DuelingDQNTrainer)
+    else:
+        raise ValueError(f"Unsupported mode: {mode}")
 
     if choice == 2: # Load best model
-        snake_agent.model.load(cfg.BEST_MODEL_FILE) 
-        best_score = load_best_score() 
+        snake_agent.model.load(cfg.model_path(cfg.BEST_MODEL_FILE, f"{mode}_{env_type}"))
+        best_score = load_best_score(file_name=cfg.model_path(cfg.BEST_SCORE_FILE, f"{mode}_{env_type}"))
         print(f"✅ Mejor modelo cargado con récord de {best_score} puntos.")
     else: # Start from scratch
         print("Entrenamiento nuevo iniciado.")
         best_score = 0
+    
+    train(snake_agent, best_score, choice, mode, env_type)
 
-    train(snake_agent, best_score, choice)
+def parse_args():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("mode", choices=["dqn", "ddqn", "dueling"], 
+                        default="dqn", 
+                        help="Tipo de algoritmo")
+    parser.add_argument("--env", choices=["simple", "golden"], 
+                        default="golden", 
+                        help="Tipo de entorno: simple o con manzana dorada")
+    return parser.parse_args()
 
 if __name__ == '__main__':
-    main()
+    args = parse_args()
+    main(args.mode, env_type=args.env)
