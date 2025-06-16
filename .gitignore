@@ -1,7 +1,10 @@
 plots/ddqn/*
 plots/dqn/*
+plots/dueling/*
 !plots/ddqn/plot_500_record_221.png
 !plots/ddqn/convergence_500_record_221.png
 !plots/dqn/convergence_500_record_187.png
 !plots/dqn/plot_500_record_187.png
+!plots/dueling/convergence_500_record_198.png
+!plots/dueling/plot_500_record_198.png
 __pycache__

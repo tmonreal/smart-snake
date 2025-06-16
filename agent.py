@@ -5,7 +5,7 @@ import numpy as np
 import config as cfg
 from collections import deque
 from game import Direction, Point
-from model import DQLNetwork, DDQNTrainer, DQLTrainer
+from model import DQLNetwork, DDQNTrainer, DQLTrainer, DuelingDQN
 
 # Load hyperparameters from config
 REPLAY_BUFFER_SIZE = cfg.REPLAY_BUFFER_SIZE
@@ -20,24 +20,39 @@ class SnakeAgent:
     - Uses experience replay and epsilon-greedy strategy.
     - Periodically syncs target network to improve training stability.
     """
-    def __init__(self, trainer_class=DDQNTrainer):
+    def __init__(self, trainer_class):
         """Initialize the agent with model, trainer, and replay buffer."""
         self.episodes_played = 0
-        self.epsilon = 0 # Exploration rate
-        self.gamma = cfg.DISCOUNT_FACTOR # Discount factor for future rewards
+        self.epsilon = 0  # Exploration rate
+        self.gamma = cfg.DISCOUNT_FACTOR
         self.replay_buffer = deque(maxlen=REPLAY_BUFFER_SIZE)  # Experience replay memory
-        self.model = DQLNetwork(15, 256, 3) # Neural network: 15 inputs, 256 hidden neurons, 3 outputs
-        self.update_target_network_every = 5           # Episode interval to update target network
-        if trainer_class.__name__ == "DDQNTrainer":
+
+        input_size = 15  # State size
+        hidden_size = 256
+        output_size = 3  # Number of actions
+
+        if trainer_class.__name__ == "DuelingDQNTrainer":
             self.is_ddqn = True
-            self.target_model = copy.deepcopy(self.model)  # Target network for stability
+            self.model = DuelingDQN(input_size, hidden_size, output_size)
+            self.target_model = DuelingDQN(input_size, hidden_size, output_size)
             self.trainer = trainer_class(self.model, self.target_model, lr=LR, gamma=self.gamma)
-            print(f"Training with {trainer_class.__name__} (DDQN). ")
-        else:
+            print("Training with DuelingDQNTrainer.")
+
+        elif trainer_class.__name__ == "DDQNTrainer":
+            self.is_ddqn = True
+            self.model = DQLNetwork(input_size, hidden_size, output_size)
+            self.target_model = copy.deepcopy(self.model)
+            self.trainer = trainer_class(self.model, self.target_model, lr=LR, gamma=self.gamma)
+            print("Training with DDQNTrainer.")
+
+        else:  
             self.is_ddqn = False
+            self.model = DQLNetwork(input_size, hidden_size, output_size)
             self.trainer = trainer_class(self.model, lr=LR, gamma=self.gamma)
-            print(f"Training with {trainer_class.__name__} (DQN). ")
-            
+            print(f"Training with {trainer_class.__name__}.")
+
+        self.update_target_network_every = 20
+
 
     def get_state(self, game):
         """
@@ -159,7 +174,8 @@ class SnakeAgent:
             chosen_action[action] = 1
         else:
             # Exploitation: choose best action predicted by model
-            state0 = torch.tensor(state, dtype=torch.float)
+            #state0 = torch.tensor(state, dtype=torch.float)
+            state0 = torch.tensor(state, dtype=torch.float).unsqueeze(0)
             with torch.no_grad():
                 prediction = self.model(state0)
             action = torch.argmax(prediction).item()

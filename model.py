@@ -161,3 +161,47 @@ class DDQNTrainer:
         loss = self.criterion(target, pred)
         loss.backward()
         self.optimizer.step()
+
+class DuelingDQN(nn.Module):
+    def __init__(self, input_size, hidden_size, output_size):
+        super(DuelingDQN, self).__init__()
+        self.feature = nn.Sequential(
+            nn.Linear(input_size, hidden_size),
+            nn.ReLU()
+        )
+
+        # Value stream V(s)
+        self.value = nn.Sequential(
+            nn.Linear(hidden_size, hidden_size),
+            nn.ReLU(),
+            nn.Linear(hidden_size, 1)
+        )
+
+        # Advantage stream A(s, a)
+        self.advantage = nn.Sequential(
+            nn.Linear(hidden_size, hidden_size),
+            nn.ReLU(),
+            nn.Linear(hidden_size, output_size)
+        )
+
+    def forward(self, x):
+        x = self.feature(x)
+        value = self.value(x)
+        advantage = self.advantage(x)
+        return value + advantage - advantage.mean(dim=1, keepdim=True)
+    
+    def save(self, file_name=cfg.MODEL_FILE):
+        os.makedirs(os.path.dirname(file_name), exist_ok=True)
+        torch.save(self.state_dict(), file_name)
+        print("💾 DuelingDQN model saved at", file_name)
+
+    def load(self, file_name=cfg.MODEL_FILE):
+        if os.path.exists(file_name):
+            self.load_state_dict(torch.load(file_name))
+            print("⏳ DuelingDQN model loaded from", file_name)
+        else:
+            print("⚠️ No DuelingDQN model found.")
+    
+class DuelingDQNTrainer(DDQNTrainer):
+    def __init__(self, model, target_model, lr, gamma):
+        super().__init__(model, target_model, lr, gamma)

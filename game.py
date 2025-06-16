@@ -118,9 +118,14 @@ class SmartSnake:
         # Check for collisions
         reward = 0
         game_over = False
-        if self.is_collision() or self.frame_iteration > 100*len(self.snake):
+        if self.is_collision():
             game_over = True
             reward = -10
+            return reward, game_over, self.score
+        
+        if self.frame_iteration > 100*len(self.snake):
+            game_over = True
+            reward = -3
             return reward, game_over, self.score
 
         # Check if apple was eaten
@@ -131,8 +136,8 @@ class SmartSnake:
             self.place_golden_apple() 
             self.shine_frames = 5
         elif self.golden_apple and self.head == self.golden_apple:
-            self.score += 5  # higher score
-            reward = 30      # stronger incentive
+            self.score += 3  # higher score
+            reward = 20      # stronger incentive
             self.golden_apple = None
             self.shine_frames = 5
         else:

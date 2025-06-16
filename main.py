@@ -107,7 +107,8 @@ def train(snake_agent, best_score, choice, mode):
 
         # Estimar valor máximo Q del estado actual
         with torch.no_grad():
-            q_values = snake_agent.model(torch.tensor(state_old, dtype=torch.float))
+            #q_values = snake_agent.model(torch.tensor(state_old, dtype=torch.float))
+            q_values = snake_agent.model(torch.tensor(state_old, dtype=torch.float).unsqueeze(0))
             max_q = torch.max(q_values).item()
             episode_q_values.append(max_q)
 
@@ -173,9 +174,14 @@ def main(mode='ddqn'):
     if mode == 'dqn':
         from model import DQLTrainer
         snake_agent = SnakeAgent(trainer_class=DQLTrainer)
-    else:
+    elif mode == 'ddqn':
         from model import DDQNTrainer
         snake_agent = SnakeAgent(trainer_class=DDQNTrainer)
+    elif mode == 'dueling':
+        from model import DuelingDQNTrainer
+        snake_agent = SnakeAgent(trainer_class=DuelingDQNTrainer)
+    else:
+        raise ValueError(f"Unsupported mode: {mode}")
 
     if choice == 2: # Load best model
         snake_agent.model.load(cfg.model_path(cfg.BEST_MODEL_FILE, mode))
@@ -188,6 +194,5 @@ def main(mode='ddqn'):
     train(snake_agent, best_score, choice, mode)
 
 if __name__ == '__main__':
-    mode = sys.argv[1] if len(sys.argv) > 1 else 'ddqn'  
+    mode = sys.argv[1] if len(sys.argv) > 1 else 'ddqn'  # default is ddqn
     main(mode)
-    main()
