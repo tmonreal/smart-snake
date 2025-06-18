@@ -1,59 +1,113 @@
-# Smart Snake Reinforcement Learning Agent
+# 🐍 Smart Snake: Deep Reinforcement Learning Agent
 
-A Reinforcement Learning project that trains an AI agent to play a retro-styled Snake game using Deep Q-Learning (DQN).
+A Reinforcement Learning project comparing three DQN-based agents trained to play a retro Snake game using Deep Q-Learning (DQN), Double DQN (DDQN), and Dueling DQN.
 
 ---
 
 ## 🚀 Project Overview
 
-This project trains a neural network to control a Snake agent:
-- **State representation**: Danger in front, left, right + Snake direction + Apple position.
-- **Action space**: [Straight, Right turn, Left turn]
-- **Learning algorithm**: Deep Q-Learning (DQN)
-- **Training features**:
-  - Experience Replay buffer
-  - Epsilon-greedy exploration strategy
-  - Graphs showing learning progress
+This project evaluates and compares the performance of:
 
-The project includes a simple **Pygame** visualizer for gameplay and a graphical menu to choose training mode.
+- DQN – baseline Deep Q-Learning agent
+- DDQN – Double DQN with target network decoupling
+- Dueling DQN – separates state value and action advantage
 
----
+All agents are tested in:
+- A simple environment (single apple)
+- A complex environment (red apple + time-limited golden apple)
 
-## 📊 Results Tracking
-
-- **Score vs Episode** plot
-- **Success Rate** plot (moving average)
-- **Automatic saving** of:
-  - Best model (`best_model.pth`)
-  - Current model (`model.pth`)
-  - Best score (`best_score.txt`)
-  - Training curves data (in `model/` folder)
+The goal is to analyze and visualize the learning dynamics, stability, and final performance of each approach.
 
 ---
 
-## 🔹 Project Structure
+## ⚙️ Training Overview
+- **State**: Danger `[front, left, right]`, current direction, red apple direction, (if enabled) golden apple direction.
+- **Actions**: `[Straight, Right, Left]`
+- **Reward Scheme**:
+  - Red apple: +10
+  - Golden apple (if enabled): +20
+- **Collision**: -10
+- **Timeout**: -3
+- **Core features**:
+  - Experience Replay
+  - Epsilon-Greedy Exploration
+  - Target Network (for DDQN)
+  - Dueling Architecture (for Dueling DQN)
+  - Custom Pygame visualizer
+---
+## 🧪 Running Experiments
+You can train and compare any of the three agents in either environment:
 
-```
-smart-snake-rl/
-├── agent.py          # SnakeAgent class (brain of the snake)
-├── config.py         # All hyperparameters and constants
-├── game.py           # SmartSnake environment (visual and logic)
-├── main.py           # Entry point with training loop and menu
-├── model.py          # DQN network and Trainer classes
-├── utils.py          # Plotting utilities, save/load utilities
-├── resources/        # Fonts and apple image
-├── model/            # Folder for saving models and scores
-├── plots/            # Saved training graphs
-├── demos/            # Demo gifs and videos
-├── README.md         # (this file)
-├── requirements.txt  # Required libraries (if needed)
+```bash
+# Train an agent in the simple environment
+python main.py mode --env simple
+
+# Train an agent in the hard environment (golden apple enabled)
+python main.py mode --env golden
 ```
 
+Replace `mode` with one of the following:
+- `dqn`: Deep Q-Learning
+- `ddqn`: Double DQN
+- `dueling`: Dueling DQN
+
+When you run the command, a graphical menu will appear allowing you to:
+- Start training from scratch
+- Continue training from best saved model
+
+## 📂 Project Structure
+
+```graphql
+smart-snake/
+├── main.py               # Main entry point: training loop + menu
+├── game.py               # SmartSnake game environment (Pygame)
+├── agent.py              # SnakeAgent (brain of the snake)
+├── model.py              # DQN, DDQN, Dueling DQN trainers
+├── config.py             # All hyperparameters
+├── utils.py              # Plotting + file I/O
+├── resources/            # Fonts + apple images
+├── model/                # Saved models and training data
+├── plots/                # Generated plots during training
+├── demos/                # Demo GIFs and videos 
+├── requirements.txt      # Python dependencies
+└── README.md             # This file
+```
 ---
+## 📊 Logging & Visualizations
+For each `(model, environment)` combination, the following are tracked:
+- Episode scores
+- Mean scores
+- Success rates
+- Estimated Q-values over time
 
-## ⚙️ Setup
+Saved in:
 
-### Requirements
+```bash
+model/results_dqn_simple/
+model/results_dueling_golden/
+...
+```
+
+And plots are saved in:
+
+```bash
+plots/dqn_simple/
+plots/dueling_golden/
+...
+```
+
+### 📈 Example Result Comparison (Hard environment)
+![alt text](plots/comparacion_mean_scores.png)
+
+![alt text](plots/comparacion_q_values.png)
+
+---
+## 🌟 Implementation Highlights
+- All models use the same environment and training loop.
+- Architecture is modular and supports switching agents via CLI.
+- Each model is saved independently with its own metrics.
+---
+## Requirements
 
 - Python 3.10+
 - Libraries:
@@ -70,66 +124,47 @@ pip install -r requirements.txt
 
 ---
 
-## How to Run
+## 🎥 Demos
 
-```bash
-python main.py
-```
+The following demos illustrate the behavior and learning progress of each agent in different stages of training and environments:
 
-You will see a menu:
-- "Start training from scratch"
-- "Continue training best model"
 
-Use your mouse to click and choose.
+**Early episodes - All models:**
 
-Training progress will be plotted every **20 episodes**. This can be modified by changing variable `PLOT_SAVE_EVERY` in `config.py`.
+Initial performance is similarly random for all models.
 
----
+![Episode 0 Demo](demos/dueling-episode0-golden.gif)
 
-## DDQN Version
+[Download Early Episodes (.webm)](demos/dueling-episode0-golden.webm)
 
-A Double DQN (DDQN) version of this agent is available in the branch [`ddqn-version`](https://github.com/tmonreal/smart-snake/tree/ddqn-version).
+**DQN – Final Episodes (Simple & Golden Environments)**
 
-In this version:
-- A second target network is maintained (`target_model`).
-- The Q-learning target uses the DDQN strategy:
-  - Action is selected using the main model.
-  - Q-value is estimated using the target model.
-- The target network is updated every N episodes.
+- **Simple Environment – Episode 498**
 
-This improves the stability of training by reducing overestimation in the Q-values.
+![Episode 498 Demo](demos/dqn-episode490-simple.gif)
 
-To run this version:
+[Download DQN Episode 498 Simple (.webm)](demos/dqn-episode490-simple.webm)
 
-```bash
-git checkout ddqn-version
-python main.py
-```
+- **Golden Apple Environment – Episode 490**
+![Episode 490 Demo](demos/dqn-episode490-golden.gif)
 
----
+[Download DQN Episode 490 Golden (.webm)](demos/dqn-episode490-golden.webm)
 
-## 🎥 Demo
+**DDQN – Intermediate Episodes (Golden Environment)**
+![Episode 220 Demo](demos/ddqn-episode220-golden.gif)
 
-The following demos illustrate the evolution of the agent's performance:
+[Download DDQN Episode 220 Golden (.webm)](demos/ddqn-episode220-golden.webm)
 
-**Episode 0 (early training):**
+**Dueling DQN – Intermediate Episodes (Golden Environment)**
+![Episode 340 Demo](demos/dueling-episode340-golden.gif)
 
-![Episode 0 Demo](demos/episode0.gif)
-
-[Download Episode 0 (.webm)](demos/episode0.webm)
-
-**Episode 100 (after training):**
-
-![Episode 100 Demo](demos/episode100.gif)
-
-[Download Episode 100 (.webm)](demos/episode100.webm)
+[Download Dueling DQN Episode 340 Golden (.webm)](demos/dueling-episode340-golden.webm)
 
 ---
 
 ## 💡 Future Improvements
-
-- Add traps or moving obstacles.
-- Implement Double DQN for better stability.
-- Try Prioritized Experience Replay.
-- Add bonuses: time-limited fruits for strategic play.
-- Multi-agent snake competition!
+- Add Prioritized Experience Replay
+- Implement Soft Actor-Critic or PPO baseline
+- Multi-agent training (competitive snake environment)
+- Parameterized difficulty levels and level generator
+- Leaderboard mode with human-vs-agent mode
